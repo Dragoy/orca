@@ -24,10 +24,7 @@ import type { EmulatorBridgeOptions } from '../emulator-bridge-types'
 import { sendEmulatorGestureSequence, type EmulatorGesturePoint } from '../emulator-gesture-sender'
 import { parseServeSimDetachedSession } from '../serve-sim-detached-session'
 import { requestServeSimAccessibilityTree } from '../serve-sim-accessibility-tree'
-import {
-  describeServeSimHelperFailure,
-  getServeSimHostUnsupportedMessage
-} from '../serve-sim-host-support'
+import { describeServeSimHelperFailure } from '../serve-sim-host-support'
 import { hideNativeSimulatorApp } from '../simulator-app-visibility'
 import type {
   BackendAvailability,
@@ -104,7 +101,6 @@ export class IosEmulatorBackend implements EmulatorBackend {
   }
 
   async checkServeSimAvailable(): Promise<void> {
-    this.assertHostSupportsServeSim()
     await this.execServeSim(['--help'], { timeoutMs: 10_000 })
   }
 
@@ -191,15 +187,7 @@ export class IosEmulatorBackend implements EmulatorBackend {
     return requestServeSimAccessibilityTree(axUrl)
   }
 
-  private assertHostSupportsServeSim(): void {
-    const unsupported = getServeSimHostUnsupportedMessage()
-    if (unsupported) {
-      throw new EmulatorError('emulator_unsupported', unsupported)
-    }
-  }
-
   async startSession(deviceId: string): Promise<EmulatorSessionInfo> {
-    this.assertHostSupportsServeSim()
     const udid = await this.resolveDeviceId(deviceId)
     await ensureSimulatorBooted(udid)
     const startDetachedHelper = async (): Promise<EmulatorSessionInfo> => {

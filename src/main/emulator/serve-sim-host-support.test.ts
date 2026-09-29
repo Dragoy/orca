@@ -1,30 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import {
-  describeServeSimHelperFailure,
-  getServeSimHostUnsupportedMessage
-} from './serve-sim-host-support'
-
-describe('getServeSimHostUnsupportedMessage', () => {
-  it('flags macOS 12 with an actionable message', () => {
-    const message = getServeSimHostUnsupportedMessage({ platform: 'darwin', release: '21.6.0' })
-    expect(message).toContain('macOS 14 or later')
-    expect(message).toContain('macOS 12')
-  })
-
-  it('allows macOS 14+', () => {
-    expect(getServeSimHostUnsupportedMessage({ platform: 'darwin', release: '23.0.0' })).toBeNull()
-  })
-
-  it('ignores non-macOS hosts', () => {
-    expect(getServeSimHostUnsupportedMessage({ platform: 'linux', release: '21.0.0' })).toBeNull()
-  })
-})
+import { describeServeSimHelperFailure } from './serve-sim-host-support'
 
 describe('describeServeSimHelperFailure', () => {
-  it('rewrites dyld symbol failures', () => {
+  it('rewrites dyld symbol failures and keeps the raw output', () => {
     const raw = 'Helper failed: dyld[1]: Symbol not found: (_$s10Foundation11JSONDecoderC6decode)'
     const described = describeServeSimHelperFailure(raw)
-    expect(described).toContain('macOS 14 or later')
+    expect(described).toContain('Update macOS')
     expect(described).toContain(raw)
   })
 
