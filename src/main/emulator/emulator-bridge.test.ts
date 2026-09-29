@@ -30,6 +30,12 @@ vi.mock('./serve-sim-execution', () => ({
   stripEmulatorTargetArgs: vi.fn((args: string[]) => args)
 }))
 
+// Why: host OS gating must not depend on the macOS version running the tests.
+vi.mock('./serve-sim-host-support', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getServeSimHostUnsupportedMessage: () => null
+}))
+
 vi.mock('./simctl-simulator-devices', () => ({
   ensureSimulatorBooted: vi.fn(async () => {}),
   listSimulatorDevices: listSimulatorDevicesMock,

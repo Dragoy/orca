@@ -12,6 +12,7 @@ const {
   shutdownSimulatorDeviceMock,
   sendEmulatorGestureSequenceMock,
   parseServeSimDetachedSessionMock,
+  hostUnsupportedMock,
   netFetchMock
 } = vi.hoisted(() => ({
   ensureSimulatorBootedMock: vi.fn(async () => {}),
@@ -23,6 +24,7 @@ const {
   shutdownSimulatorDeviceMock: vi.fn(async () => {}),
   sendEmulatorGestureSequenceMock: vi.fn(async () => {}),
   parseServeSimDetachedSessionMock: vi.fn(),
+  hostUnsupportedMock: vi.fn((): string | null => null),
   netFetchMock: vi.fn()
 }))
 
@@ -33,6 +35,12 @@ vi.mock('../serve-sim-execution', () => ({
   parseServeSimCommandArgs: vi.fn((input: string) => input.split(' ').filter(Boolean)),
   resolveServeSimExecutable: vi.fn(() => ({ command: '/serve-sim', env: {} })),
   stripEmulatorTargetArgs: vi.fn((args: string[]) => args)
+}))
+
+// Why: host OS gating must not depend on the macOS version running the tests.
+vi.mock('../serve-sim-host-support', async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  getServeSimHostUnsupportedMessage: hostUnsupportedMock
 }))
 
 vi.mock('../simctl-simulator-devices', () => ({
@@ -259,6 +267,38 @@ describe('IosEmulatorBackend', () => {
     expect(info.deviceUdid).toBe('device-1')
     expect(info.streamCodec).toBe('mjpeg')
     expect(hideNativeSimulatorAppMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refuses to start on a macOS too old for the helper', async () => {
+    hostUnsupportedMock.mockReturnValueOnce('requires macOS 14 or later')
+    const backend = new IosEmulatorBackend({ waitForEndpointReady: async () => true })
+    await expect(backend.startSession('device-1')).rejects.toMatchObject({
+      code: 'emulator_unsupported',
+      message: 'requires macOS 14 or later'
+    })
+    expect(execServeSimCommandMock).not.toHaveBeenCalled()
+  })
+
+  it('reports an unsupported host from the availability check', async () => {
+    hostUnsupportedMock.mockReturnValueOnce('requires macOS 14 or later')
+    const backend = new IosEmulatorBackend({ waitForEndpointReady: async () => true })
+    await expect(backend.checkServeSimAvailable()).rejects.toMatchObject({
+      code: 'emulator_unsupported'
+    })
+  })
+
+  it('rewrites raw dyld helper failures into an actionable error', async () => {
+    execServeSimCommandMock.mockRejectedValueOnce(
+      new EmulatorError(
+        'emulator_error',
+        'Helper failed: dyld[1]: Symbol not found: (_$s10Foundation)'
+      )
+    )
+    const backend = new IosEmulatorBackend({ waitForEndpointReady: async () => true })
+    await expect(backend.startSession('device-1')).rejects.toMatchObject({
+      code: 'emulator_helper_failed',
+      message: expect.stringContaining('macOS 14 or later')
+    })
   })
 
   it('recycles the device and retries when the helper finds no framebuffer', async () => {
