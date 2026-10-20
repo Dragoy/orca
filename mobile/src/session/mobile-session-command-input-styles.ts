@@ -187,6 +187,11 @@ export const mobileSessionCommandInputStyles = StyleSheet.create({
     opacity: 0.45
   },
 
+  liveInputKeyboardCapture: {
+    position: 'absolute',
+    width: 1,
+    height: 1
+  },
   liveInputCapture: {
     position: 'absolute',
     opacity: 0,

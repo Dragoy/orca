@@ -16,6 +16,7 @@ import { TerminalViewportResubscribeBudget } from './mobile-terminal-viewport-re
 import { MobileTerminalDiagnostics } from './mobile-terminal-diagnostics'
 import { useBufferedTerminalDrafts } from '../terminal/use-buffered-terminal-drafts'
 import { useMobileTerminalInventoryRecoveryBridge } from './use-mobile-terminal-inventory-recovery'
+import { useHardwareKeyboardConnected } from '../../modules/orca-hardware-keyboard/src'
 import type {
   MobileSessionTab,
   MobileSessionTabType,
@@ -146,11 +147,27 @@ export function useMobileSessionTerminalRuntime(scope: MobileSessionScreenStateM
     reopenFocusedInputWhenKeyboardHidden: reopensFocusedInputWhenKeyboardHidden(),
     timerRef: liveInputFocusTimerRef
   })
+  const [routeFocused, setRouteFocused] = useState(false)
   useFocusEffect(
     useCallback(() => {
+      setRouteFocused(true)
       // Expo retains this route while pushed screens are visible.
-      return resetLiveInputFocus
+      return () => {
+        setRouteFocused(false)
+        resetLiveInputFocus()
+      }
     }, [resetLiveInputFocus])
+  )
+  const hardwareKeyboardConnected = useHardwareKeyboardConnected()
+  const hardwareKeyboardHoldsFocus =
+    hardwareKeyboardConnected && liveInputEnabled && canSend && routeFocused
+  useFocusEffect(
+    useCallback(() => {
+      // Why: with a hardware keyboard nothing on screen invites a tap, and focusing shows no software keyboard.
+      if (hardwareKeyboardHoldsFocus && activeHandle) {
+        focusLiveInput()
+      }
+    }, [activeHandle, focusLiveInput, hardwareKeyboardHoldsFocus])
   )
   return {
     ptyModesRef,
@@ -206,6 +223,8 @@ export function useMobileSessionTerminalRuntime(scope: MobileSessionScreenStateM
     canCompose,
     canSend,
     liveInputEnabled,
+    hardwareKeyboardConnected,
+    hardwareKeyboardHoldsFocus,
     focusLiveInput,
     handleTerminalTap,
     resetLiveInputFocus,

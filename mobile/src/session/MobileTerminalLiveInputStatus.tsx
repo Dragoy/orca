@@ -9,12 +9,14 @@ type DictationStatus = {
 
 type MobileTerminalLiveInputStatusProps = {
   readonly dictation: DictationStatus
+  readonly hardwareKeyboardConnected?: boolean
   readonly isAttaching: boolean
   readonly liveInputText: string
 }
 
 export function MobileTerminalLiveInputStatus({
   dictation,
+  hardwareKeyboardConnected = false,
   isAttaching,
   liveInputText
 }: MobileTerminalLiveInputStatusProps) {
@@ -33,7 +35,8 @@ export function MobileTerminalLiveInputStatus({
         ? 'Preparing microphone'
         : isAttaching
           ? 'Uploading image to host'
-          : liveInputText || 'Tap to show keyboard'
+          : liveInputText ||
+            (hardwareKeyboardConnected ? 'Hardware keyboard types here' : 'Tap to show keyboard')
 
   return (
     <View style={styles.status}>

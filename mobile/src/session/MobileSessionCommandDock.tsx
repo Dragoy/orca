@@ -11,6 +11,8 @@ import {
 } from 'lucide-react-native'
 import { triggerMediumImpact } from '../platform/haptics'
 import { createTerminalLiveAccessoryInput } from '../terminal/terminal-live-accessory-input'
+import { buildTerminalHardwareKeyInput } from '../terminal/terminal-hardware-key-input'
+import { HardwareKeyboardCapture } from '../../modules/orca-hardware-keyboard/src'
 import {
   getTerminalCommandKeyboardType,
   getTerminalLiveInputKeyboardType
@@ -46,6 +48,8 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
     canSend,
     canCompose,
     liveInputEnabled,
+    hardwareKeyboardConnected,
+    hardwareKeyboardHoldsFocus,
     focusLiveInput,
     showNativeChat,
     dictation,
@@ -274,6 +278,7 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
               <KeyboardIcon size={16} color={colors.textSecondary} strokeWidth={2} />
               <MobileTerminalLiveInputStatus
                 dictation={dictation}
+                hardwareKeyboardConnected={hardwareKeyboardConnected}
                 isAttaching={isAttaching}
                 liveInputText={liveInputCapture}
               />
@@ -293,27 +298,39 @@ export function MobileSessionCommandDock({ controller }: { controller: MobileSes
               onDictationPressOut={handleDictationPressOut}
               onDictationCancel={cancelDictation}
             />
-            <TextInput
-              ref={bindLiveInputField}
-              style={styles.liveInputCapture}
-              value={liveInputCapture}
-              onChange={handleLiveInputChange}
-              onKeyPress={handleLiveInputKeyPress}
-              onSubmitEditing={submitLiveInput}
-              placeholder=""
-              showSoftInputOnFocus
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              smartInsertDelete={false}
-              // Why: iOS textContentType overrides autoComplete and can narrow the keyboard; keep IME switching available.
-              autoComplete="off"
-              keyboardType={getTerminalLiveInputKeyboardType(hostOs())}
-              returnKeyType="default"
-              blurOnSubmit={false}
-              editable={canSend}
-              importantForAutofill="no"
-            />
+            <HardwareKeyboardCapture
+              style={styles.liveInputKeyboardCapture}
+              captureEnabled={canSend}
+              holdFocus={hardwareKeyboardHoldsFocus}
+              onTerminalKey={({ nativeEvent }) => {
+                const input = buildTerminalHardwareKeyInput(nativeEvent)
+                if (input) {
+                  void handleAccessoryKey(input)
+                }
+              }}
+            >
+              <TextInput
+                ref={bindLiveInputField}
+                style={styles.liveInputCapture}
+                value={liveInputCapture}
+                onChange={handleLiveInputChange}
+                onKeyPress={handleLiveInputKeyPress}
+                onSubmitEditing={submitLiveInput}
+                placeholder=""
+                showSoftInputOnFocus
+                autoCapitalize="none"
+                autoCorrect={false}
+                spellCheck={false}
+                smartInsertDelete={false}
+                // Why: iOS textContentType overrides autoComplete and can narrow the keyboard; keep IME switching available.
+                autoComplete="off"
+                keyboardType={getTerminalLiveInputKeyboardType(hostOs())}
+                returnKeyType="default"
+                blurOnSubmit={false}
+                editable={canSend}
+                importantForAutofill="no"
+              />
+            </HardwareKeyboardCapture>
           </View>
         ) : (
           <View style={styles.inputBar}>
