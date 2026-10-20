@@ -12,6 +12,7 @@ import { applyTerminalTheme } from './terminal-theme'
 import { init, resize, write } from './terminal-init'
 import { applyTextScale } from './text-scaling'
 import { resetWriteQueue } from './write-queue'
+import { scrollTerminalByHostWheel } from './wheel-scroll'
 
 /** One message from the host. Every field is optional because the router reads them by type. */
 export type TerminalHostMessage = {
@@ -26,6 +27,9 @@ export type TerminalHostMessage = {
   oscLinks?: unknown
   data?: string
   frame?: { width: number; height: number } | null
+  deltaY?: number
+  clientX?: number
+  clientY?: number
 }
 
 /** The frame React Native laid out, sent with every grid; null when absent or without a size. */
@@ -117,6 +121,8 @@ export function handleMsg(scope: TerminalDocumentScope, msg: TerminalHostMessage
     applyFitScale(scope, 'reset-zoom-msg')
   } else if (msg.type === 'set-theme') {
     applyTerminalTheme(scope, msg.terminalTheme)
+  } else if (msg.type === 'wheel') {
+    scrollTerminalByHostWheel(scope, msg.deltaY!, msg.clientX!, msg.clientY!)
   } else if (msg.type === 'cancel-select') {
     if (scope.selMode === 'select') {
       cancelSelect(scope)

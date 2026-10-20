@@ -7,6 +7,7 @@ import { TERMINAL_WEBVIEW_FRAME_STYLES } from './terminal-webview-frame-styles'
 import { xtermWebViewSource } from './terminal-webview-html'
 import type { TerminalWebViewCommand } from './terminal-webview-messages'
 import { useTerminalWebViewController } from './use-terminal-webview-controller'
+import { TrackpadScrollCapture } from '../../modules/orca-trackpad-scroll/src'
 
 type Props = TerminalWebViewProps
 
@@ -24,6 +25,7 @@ export const TerminalWebView = forwardRef<TerminalWebViewHandle, Props>(
       clearEngineError,
       engineError,
       handle,
+      postTrackpadScroll,
       receive,
       reportNativeEngineError,
       resetReadiness
@@ -70,29 +72,36 @@ export const TerminalWebView = forwardRef<TerminalWebViewHandle, Props>(
 
     return (
       <View style={[TERMINAL_WEBVIEW_FRAME_STYLES.container, props.style]}>
-        <WebView
-          ref={webViewRef}
-          source={source}
+        <TrackpadScrollCapture
           style={TERMINAL_WEBVIEW_FRAME_STYLES.webview}
-          originWhitelist={['*']}
-          javaScriptEnabled
-          scrollEnabled={false}
-          // Why: Android parent gesture containers can intercept vertical drags
-          // before the injected xterm scroll router sees them.
-          nestedScrollEnabled
-          scalesPageToFit={false}
-          // Why: Android WebView defaults textZoom to the system font scale, inflating
-          // xterm's DOM glyphs past its canvas-measured cell grid (#4579). iOS ignores it.
-          textZoom={100}
-          onLoadStart={resetReadiness}
-          onMessage={handleMessage}
-          onError={(event) => reportNativeEngineError('Terminal WebView load failed', event)}
-          onHttpError={(event) => reportNativeEngineError('Terminal WebView HTTP error', event)}
-          onRenderProcessGone={(event) =>
-            reportNativeEngineError('Terminal WebView render process ended', event)
+          onTrackpadScroll={({ nativeEvent }) =>
+            postTrackpadScroll(nativeEvent.deltaY, nativeEvent.x, nativeEvent.y)
           }
-          onContentProcessDidTerminate={handleContentProcessDidTerminate}
-        />
+        >
+          <WebView
+            ref={webViewRef}
+            source={source}
+            style={TERMINAL_WEBVIEW_FRAME_STYLES.webview}
+            originWhitelist={['*']}
+            javaScriptEnabled
+            scrollEnabled={false}
+            // Why: Android parent gesture containers can intercept vertical drags
+            // before the injected xterm scroll router sees them.
+            nestedScrollEnabled
+            scalesPageToFit={false}
+            // Why: Android WebView defaults textZoom to the system font scale, inflating
+            // xterm's DOM glyphs past its canvas-measured cell grid (#4579). iOS ignores it.
+            textZoom={100}
+            onLoadStart={resetReadiness}
+            onMessage={handleMessage}
+            onError={(event) => reportNativeEngineError('Terminal WebView load failed', event)}
+            onHttpError={(event) => reportNativeEngineError('Terminal WebView HTTP error', event)}
+            onRenderProcessGone={(event) =>
+              reportNativeEngineError('Terminal WebView render process ended', event)
+            }
+            onContentProcessDidTerminate={handleContentProcessDidTerminate}
+          />
+        </TrackpadScrollCapture>
         {engineError ? (
           <TerminalWebViewEngineErrorOverlay message={engineError} onReload={handleReload} />
         ) : null}

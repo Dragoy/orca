@@ -104,6 +104,14 @@ function dispatchWheel(deltaY: number, init: WheelEventInit = {}): WheelEvent {
   return event
 }
 
+function postHostWheel(deltaY: number): void {
+  window.dispatchEvent(
+    new MessageEvent('message', {
+      data: JSON.stringify({ type: 'wheel', deltaY, clientX: 40, clientY: 60 })
+    })
+  )
+}
+
 function terminalInputBytes(postMessage: ReturnType<typeof vi.fn>): string {
   return postMessage.mock.calls
     .map(([raw]) => JSON.parse(String(raw)) as { bytes?: string; type: string })
@@ -287,5 +295,41 @@ describe('terminal WebView external pointer wheel scrolling', () => {
     dispatchWheel(1)
 
     expect(terminalInputBytes(postMessage)).toBe('')
+  })
+
+  it('routes a host-forwarded iPad trackpad scroll like a wheel', () => {
+    buffer = { baseY: 0, type: 'alternate', viewportY: 0 }
+    boot()
+
+    postHostWheel(2 * CELL_HEIGHT)
+
+    expect(terminalInputBytes(postMessage)).toBe(ESC_ARROW_DOWN.repeat(2))
+  })
+
+  it('scrolls scrollback from a host-forwarded trackpad scroll', () => {
+    buffer = { baseY: 20, type: 'normal', viewportY: 20 }
+    boot()
+
+    postHostWheel(-3 * CELL_HEIGHT)
+    flushFrames()
+
+    expect(scrollLines).toHaveBeenCalledWith(-3)
+  })
+
+  it('ignores forwarded scrolls once WebKit delivers real wheels, so nothing doubles', () => {
+    buffer = { baseY: 0, type: 'alternate', viewportY: 0 }
+    boot()
+    const surface = document.getElementById('terminal-surface')
+    const trusted = new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      deltaY: CELL_HEIGHT
+    })
+    Object.defineProperty(trusted, 'isTrusted', { value: true })
+    surface?.dispatchEvent(trusted)
+
+    postHostWheel(2 * CELL_HEIGHT)
+
+    expect(terminalInputBytes(postMessage)).toBe(ESC_ARROW_DOWN)
   })
 })

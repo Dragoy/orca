@@ -64,6 +64,8 @@ export type TerminalDocumentState = {
   terminalThemeInput: TerminalDocumentThemeMessage
   /** `wheel-scroll`: sub-line wheel travel carried between events; reset by a touch scroll. */
   wheelAccumDeltaY: number
+  /** `wheel-scroll`: WebKit delivered a real wheel, so host-forwarded trackpad scrolls would double it. */
+  domWheelSeen: boolean
   /** `terminal-theme`: the built-in theme, and the fallback for every slot a host theme omits. */
   defaultTheme: TerminalDocumentTheme
   /** `terminal-theme`: the host theme normalised against the built-in one. */
@@ -304,6 +306,7 @@ function createTerminalDocumentState(): TerminalDocumentState {
     longPressOrigin: null,
     tapCandidate: null,
     wheelAccumDeltaY: 0,
+    domWheelSeen: false,
     surface: null,
     pendingTerm: null,
     committedTerm: null,

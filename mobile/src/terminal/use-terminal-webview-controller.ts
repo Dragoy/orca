@@ -114,6 +114,16 @@ export function useTerminalWebViewController(
     [pendingMessages, sendToDocument]
   )
 
+  // A scroll is only meaningful to the document showing now; never queue it for a later one.
+  const postTrackpadScroll = useCallback(
+    (deltaY: number, clientX: number, clientY: number) => {
+      if (isWebReadyRef.current) {
+        sendToDocument({ type: 'wheel', deltaY, clientX, clientY })
+      }
+    },
+    [sendToDocument]
+  )
+
   // Why: a busy PTY delivers ~200 stream frames/s; coalescing here collapses the
   // per-frame bridge + WebKit IPC + paint cost that runs the phone hot (#9302).
   const writeCoalescer = useMemo(
@@ -337,6 +347,7 @@ export function useTerminalWebViewController(
     confirmWebReady,
     engineError,
     handle,
+    postTrackpadScroll,
     receive,
     reportNativeEngineError,
     resetReadiness

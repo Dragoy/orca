@@ -48,28 +48,58 @@ export function attachSurfaceWheelHandler(
         return
       }
 
-      const deltaY = wheelEventPixelDeltaY(scope, e)
-      if (deltaY === 0) {
-        return
+      if (e.isTrusted) {
+        scope.domWheelSeen = true
       }
-
-      if (shouldRouteScrollToTerminalInput(scope)) {
-        resetSmoothScrollOffset(scope)
-        const effectiveCellH = getCellHeight(scope) * getTotalScale(scope)
-        if (!(effectiveCellH > 0)) {
-          return
-        }
-        scope.wheelAccumDeltaY += deltaY
-        const lines = Math.trunc(scope.wheelAccumDeltaY / effectiveCellH)
-        if (lines !== 0) {
-          scope.wheelAccumDeltaY -= lines * effectiveCellH
-          routeScrollLines(scope, lines, e.clientX, e.clientY)
-        }
-        return
-      }
-      scope.wheelAccumDeltaY = 0
-      enqueueNormalBufferScrollDelta(scope, deltaY)
+      scrollTerminalByWheel(scope, wheelEventPixelDeltaY(scope, e), e.clientX, e.clientY)
     },
     { capture: true, passive: false }
   )
+}
+
+/**
+ * A trackpad scroll the host caught natively: iOS disables the WebView's scroll view, so a
+ * two-finger trackpad scroll never becomes a DOM wheel event on its own.
+ */
+export function scrollTerminalByHostWheel(
+  scope: TerminalDocumentScope,
+  deltaY: number,
+  clientX: number,
+  clientY: number
+) {
+  if (scope.domWheelSeen || dispatcherShouldBlockSurface(scope) || !scope.term) {
+    return
+  }
+  if (!Number.isFinite(deltaY) || !Number.isFinite(clientX) || !Number.isFinite(clientY)) {
+    return
+  }
+  scrollTerminalByWheel(scope, deltaY, clientX, clientY)
+}
+
+function scrollTerminalByWheel(
+  scope: TerminalDocumentScope,
+  deltaY: number,
+  clientX: number,
+  clientY: number
+) {
+  if (deltaY === 0) {
+    return
+  }
+
+  if (shouldRouteScrollToTerminalInput(scope)) {
+    resetSmoothScrollOffset(scope)
+    const effectiveCellH = getCellHeight(scope) * getTotalScale(scope)
+    if (!(effectiveCellH > 0)) {
+      return
+    }
+    scope.wheelAccumDeltaY += deltaY
+    const lines = Math.trunc(scope.wheelAccumDeltaY / effectiveCellH)
+    if (lines !== 0) {
+      scope.wheelAccumDeltaY -= lines * effectiveCellH
+      routeScrollLines(scope, lines, clientX, clientY)
+    }
+    return
+  }
+  scope.wheelAccumDeltaY = 0
+  enqueueNormalBufferScrollDelta(scope, deltaY)
 }

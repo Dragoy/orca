@@ -26,6 +26,7 @@ export type TerminalWebViewCommand =
   | { type: 'reflow'; id?: number; cols: number; rows: number; frame: TerminalFrame | null }
   | { type: 'clear'; id?: number }
   | { type: 'reset-zoom'; id?: number }
+  | { type: 'wheel'; id?: number; deltaY: number; clientX: number; clientY: number }
   | { type: 'cancel-select'; id?: number }
   | { type: 'do-select-all'; id?: number }
   | { type: 'set-theme'; id?: number; terminalTheme?: RuntimeMobileTerminalTheme }
