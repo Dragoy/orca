@@ -59,18 +59,23 @@ function tabIdRule(kind: string): 'terminal' | 'kept' {
   return rule
 }
 
-/** An editor tab names its file by path, or by the owned id of the server's own (local) file. */
+/** A server editor tab names its file by path or by owned id; the desktop always uses the owned id. */
 function desktopEditorEntityId(
   entityId: string,
   layout: PublishedWorkspaceLayout,
   environmentId: string
 ): string {
-  const file = layout.editorFiles.find(
-    (candidate) =>
-      ownedEditorFileId(candidate.filePath, layout.worktreeId, candidate.runtimeEnvironmentId) ===
-      entityId
-  )
-  return file ? ownedEditorFileId(file.filePath, layout.worktreeId, environmentId) : entityId
+  const filePath =
+    layout.editorFiles.find(
+      (candidate) =>
+        ownedEditorFileId(candidate.filePath, layout.worktreeId, candidate.runtimeEnvironmentId) ===
+        entityId
+    )?.filePath ??
+    // Why only the path: every desktop record of a server file is owned by that server, whichever server record a bare path names.
+    (layout.editorFiles.some((candidate) => candidate.filePath === entityId) ? entityId : null)
+  return filePath === null
+    ? entityId
+    : ownedEditorFileId(filePath, layout.worktreeId, environmentId)
 }
 
 /** The handle session.tabs gives a server terminal tab's pane; null while it has none. */
@@ -161,19 +166,28 @@ export function serverTabIdOf(desktopTabId: string): string {
   return isWebTerminalSurfaceTabId(desktopTabId) ? toHostSessionTabId(desktopTabId) : desktopTabId
 }
 
-/** A desktop editor tab's file id as the server knows it: its own file, owned by no environment. */
-function serverEditorEntityId(entityId: string, layout: PublishedWorkspaceLayout): string {
-  const file = layout.editorFiles.find(
+/** A desktop editor file id as the server knows it: its own file, owned by no environment; unchanged
+ *  when no record names it (`desktopEditorEntityId` then hands it back unchanged too). */
+export function serverEditorFileId(
+  fileId: string,
+  worktreeId: string,
+  files: readonly Pick<PublishedEditorFile, 'filePath' | 'runtimeEnvironmentId'>[]
+): string {
+  const file = files.find(
     (candidate) =>
-      ownedEditorFileId(candidate.filePath, layout.worktreeId, candidate.runtimeEnvironmentId) ===
-      entityId
+      ownedEditorFileId(candidate.filePath, worktreeId, candidate.runtimeEnvironmentId) === fileId
   )
-  return file ? ownedEditorFileId(file.filePath, layout.worktreeId, undefined) : entityId
+  return file ? ownedEditorFileId(file.filePath, worktreeId, undefined) : fileId
+}
+
+function serverEditorEntityId(entityId: string, layout: PublishedWorkspaceLayout): string {
+  return serverEditorFileId(entityId, layout.worktreeId, layout.editorFiles)
 }
 
 /**
- * A desktop-shaped workspace under the server's ids: the inverse of `serverLayoutForDesktop` for
- * every id it maps. Panes keep no terminal: the desktop binds handles, which the server never takes.
+ * A desktop-shaped workspace under the server's ids: the inverse of `serverLayoutForDesktop`, except
+ * that an editor tab the server named by path comes back under the server's owned id for that file.
+ * Panes keep no terminal: the desktop binds handles, which the server never takes.
  */
 export function desktopLayoutForServer(layout: PublishedWorkspaceLayout): PublishedWorkspaceLayout {
   return {
@@ -212,6 +226,12 @@ export type ServerLayoutFrameTranslator = {
   rebind: (key: string) => WorkspaceLayoutRecordsFrame | null
   /** The workspaces the server's stream holds now. */
   keys: () => string[]
+  /** A desktop tab id as this server's latest frames name it; null when they hold no such tab. */
+  serverTabId: (key: string, desktopTabId: string) => string | null
+  /** A server tab id under desktop ids; unchanged when the frames hold no such tab. */
+  desktopTabId: (key: string, serverTabId: string) => string
+  /** A workspace as the server publishes it, under the server's ids. */
+  serverLayout: (key: string) => PublishedWorkspaceLayout | undefined
 }
 
 /**
@@ -286,6 +306,16 @@ export function createServerLayoutFrameTranslator(
       }
     },
     keys: () => [...server.keys()],
+    // Both copies list the same tabs in the same order (serverLayoutForDesktop maps one to one).
+    serverTabId: (key, desktopTabId) => {
+      const index = desktop.get(key)?.layout.tabs.findIndex((tab) => tab.id === desktopTabId) ?? -1
+      return index < 0 ? null : (server.get(key)?.tabs[index]?.id ?? null)
+    },
+    desktopTabId: (key, serverTabId) => {
+      const index = server.get(key)?.tabs.findIndex((tab) => tab.id === serverTabId) ?? -1
+      return index < 0 ? serverTabId : (desktop.get(key)?.layout.tabs[index]?.id ?? serverTabId)
+    },
+    serverLayout: (key) => server.get(key),
     rebind: (key) => {
       const layout = server.get(key)
       const workspaces = layout ? changeTo(key, layout) : []

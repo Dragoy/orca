@@ -28,6 +28,7 @@ import {
 import { renameEditorFiles } from './workspace-layout-editor-rekey'
 import { openSimulatorTab } from './workspace-layout-simulator-tab'
 import { updateLegacyPersistence } from './workspace-layout-legacy-persistence'
+import { runDroppedLeafStep } from './workspace-layout-dropped-leaves'
 import type { WorkspaceLayoutModel } from './workspace-layout-model'
 import {
   closePane,
@@ -35,6 +36,8 @@ import {
   movePane,
   movePaneToNewTab,
   renamePane,
+  setPaneGrid,
+  releasePaneTerminal,
   setPaneRatios,
   splitPane
 } from './workspace-layout-pane-commands'
@@ -60,12 +63,13 @@ const CREATES_WORKSPACE = new Set<LayoutCommand['type']>([
 
 /** A `renameTabs` as the `renameTab` each of its titles is. */
 export function renameTabCommandsOf(command: RenameTabsCommand): CommandOf<'renameTab'>[] {
-  return command.renames.map(({ workspace, tabId, title }) => ({
+  return command.renames.map(({ workspace, tabId, title, replaceExisting }) => ({
     type: 'renameTab',
     workspace,
     tabId,
     kind: command.kind,
-    title
+    title,
+    ...(replaceExisting ? { replaceExisting } : {})
   }))
 }
 
@@ -75,7 +79,16 @@ export function applyLayoutCommand(
   context: LayoutContext
 ): Applied {
   const result = applyCommand(model, command, context)
-  return result.ok ? { ...result, model: updateLegacyPersistence(model, result.model) } : result
+  if (!result.ok) {
+    return result
+  }
+  const next = updateLegacyPersistence(model, result.model)
+  return {
+    ...result,
+    model: context.droppedLeafReason
+      ? runDroppedLeafStep(model, next, context.droppedLeafReason, context.now())
+      : next
+  }
 }
 
 function applyCommand(
@@ -125,6 +138,10 @@ function applyCommand(
       return renameTab(model, command)
     case 'renamePane':
       return renamePane(model, command)
+    case 'setPaneGrid':
+      return setPaneGrid(model, command)
+    case 'releasePaneTerminal':
+      return releasePaneTerminal(model, command)
     case 'setTabProps':
       return setTabProps(model, command)
     case 'setChatPane':
